@@ -40,8 +40,10 @@ public class Scheduler implements Runnable {
    * @param request The request that is to be queued and eventually satisfied.
    * @return True if the request was successfully queued, otherwise false.
    */
-  public synchronized void request(Request request) {
-    requests.add(request);
+  public void request(Request request) {
+    synchronized (this) {
+      requests.add(request);
+    }
   }
 
   public void run() {
@@ -53,12 +55,15 @@ public class Scheduler implements Runnable {
     // the sleepDelay.  If they do, then the sleepDelay parameter can be tuned for this scheduler for a
     // particular price.
     while (true) {
-      try {
-        Thread.sleep(sleepDelay);
-        synchronized (this) {
+      synchronized (this) {
+        try {
+          // Sleep for some time in between checks
+          Thread.sleep(sleepDelay);
+        } catch (InterruptedException exc) {
+        }
+        if (!requests.isEmpty()) {
           _requestMatcher.matchElevator(elevators, requests);
         }
-      } catch (InterruptedException exc) {
       }
     }
   }
