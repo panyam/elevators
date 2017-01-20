@@ -2,50 +2,73 @@
 package com.panyam;
 
 public class StandardElevator implements Elevator {
-    private int capacity;
-    private int numFloors;
-    private Elevator.State currentState;
-    private FloorSelector floorSelector;
+    private  Status _status;
+    private int _currFloor = 1;
+    private volatile int _requestedFloor = -1;
+    private int _ticksPerFloor = 10;
+    private int _currTick = 0;
 
-    StandardElevator(FloorSelector floorSelector, int numFloors, int capacity) {
-        this.numFloors = numFloors;
-        this.capacity = capacity;
+    StandardElevator() {
+        _status = Status.IDLE;
     }
 
-    public int getCapacity() {
-        return capacity;
+    @Override
+    public Status getStatus() {
+        return _status;
     }
 
-    public FloorSelector getFloorSelector() {
-        return floorSelector;
+    @Override
+    public int getLastFloor() {
+      return _currFloor;
     }
 
-    public Elevator.State getCurrentState() {
-        return currentState;
-    }
-
-    public synchronized boolean schedule(int floor) {
-        if (getCurrentStatus().currentStatus != Elevator.State.FUCKED) {
-            floorSelector.put(floor);
-            return true;
+    @Override
+    public void gotoFloor(int floor) {
+        synchronized (this) {
+            _requestedFloor = floor;
+            this.notify();
         }
-        return false;
     }
 
-    public int getNumFloors() {
-        return numFloors;
+    @Override
+    public int getRequestedFloor() {
+        return _requestedFloor;
     }
 
-    public int currentDirection() {
-        return 0;
-    }
-
-    public void request(int floor) {
-        floorSelector.put(new Request(floor, this));
-    }
-
-    public int lastFloor() {
-        return -1;
+    public void run() {
+        while (true) {
+            synchronized (this) {
+                while (_requestedFloor < 0) {
+                    try {
+                        this.wait(50);
+                    } catch (InterruptedException exc) {
+                        // ...
+                    }
+                }
+            }
+            if (_requestedFloor >= 1) {
+                // move one tick closer to the requested floor
+                if (_requestedFloor == _currFloor) {
+                    // Reached the floor
+                    _currTick = 0;
+                    _status = Status.IDLE;
+                } else if (_requestedFloor > _currFloor) {
+                    _status = Status.MOVING_UP;
+                    _currTick++;
+                    if (_currTick == _ticksPerFloor) {
+                        _currFloor++;
+                        _currTick = 0;
+                    }
+                } else {
+                    _status = Status.MOVING_DOWN;
+                    _currTick--;
+                    if (_currTick < 0) {
+                        _requestedFloor--;
+                        _currTick += _ticksPerFloor;
+                    }
+                }
+            }
+        }
     }
 }
 
