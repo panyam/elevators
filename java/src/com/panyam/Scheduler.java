@@ -14,7 +14,7 @@ import java.util.stream.IntStream;
 
 public class Scheduler implements Runnable {
   private int _numFloors;
-  private List<Elevator> elevators;
+  private List<Elevator> _elevators;
   // Number of times to retry before a scheduling of a request is given up.
   private int maxTries = 5;
   // Max time to wait for a schedule to go through or fail.
@@ -23,17 +23,13 @@ public class Scheduler implements Runnable {
   private long sleepDelay = 50;
   private RequestMatcher _requestMatcher;
   private Set<Request> requests;
-  ExecutorService _executor;
   ScheduledExecutorService _scheduledExecutorService;
 
-  public Scheduler(int numElevators, int numFloors, RequestMatcher requestMatcher) {
+  public Scheduler(List<Elevator> elevators, int numFloors, RequestMatcher requestMatcher) {
     _numFloors = numFloors;
     requests = new HashSet<>();
-    _executor = Executors.newFixedThreadPool(elevators.size());
+    _elevators = elevators;
     _scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
-    elevators = IntStream.range(0, numElevators)
-        .mapToObj(val -> new StandardElevator())
-        .collect(Collectors.toList());
     _requestMatcher = requestMatcher;
   }
 
@@ -71,22 +67,14 @@ public class Scheduler implements Runnable {
   protected void matchIfTasksAvailable() {
     synchronized (this) {
       if (!requests.isEmpty()) {
-        _requestMatcher.matchElevator(elevators, requests);
+        _requestMatcher.matchElevator(_elevators, requests);
       }
     }
   }
 
   public synchronized void start() {
-    elevators.stream().forEach(elevator -> _executor.submit(elevator));
-
-    if (false) {
-      // Submit the whole task
-      _scheduledExecutorService.submit(this);
-    } else {
-      // Or do something cooler and do a periodic task!
-      Runnable task = () -> matchIfTasksAvailable();
-      _scheduledExecutorService.scheduleWithFixedDelay(task, 0, sleepDelay, TimeUnit.MILLISECONDS);
-    }
+    Runnable task = () -> matchIfTasksAvailable();
+    _scheduledExecutorService.scheduleWithFixedDelay(task, 0, sleepDelay, TimeUnit.MILLISECONDS);
   }
 }
 
