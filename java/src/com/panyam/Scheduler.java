@@ -85,7 +85,7 @@ public class Scheduler implements Runnable {
     } else {
       // Or do something cooler and do a periodic task!
       Runnable task = () -> matchIfTasksAvailable();
-      _scheduledExecutorService.scheduleAtFixedRate(task, 0, sleepDelay, TimeUnit.MILLISECONDS);
+      _scheduledExecutorService.scheduleWithFixedDelay(task, 0, sleepDelay, TimeUnit.MILLISECONDS);
     }
   }
 }
