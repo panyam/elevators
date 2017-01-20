@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -22,11 +24,13 @@ public class Scheduler implements Runnable {
   private RequestMatcher _requestMatcher;
   private Set<Request> requests;
   ExecutorService _executor;
+  ScheduledExecutorService _scheduledExecutorService;
 
   public Scheduler(int numElevators, int numFloors, RequestMatcher requestMatcher) {
     _numFloors = numFloors;
     requests = new HashSet<>();
     _executor = Executors.newFixedThreadPool(elevators.size());
+    _scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     elevators = IntStream.range(0, numElevators)
         .mapToObj(val -> new StandardElevator())
         .collect(Collectors.toList());
@@ -55,22 +59,34 @@ public class Scheduler implements Runnable {
     // the sleepDelay.  If they do, then the sleepDelay parameter can be tuned for this scheduler for a
     // particular price.
     while (true) {
-      synchronized (this) {
-        try {
-          // Sleep for some time in between checks
-          Thread.sleep(sleepDelay);
-        } catch (InterruptedException exc) {
-        }
-        if (!requests.isEmpty()) {
-          _requestMatcher.matchElevator(elevators, requests);
-        }
+      try {
+        // Sleep for some time in between checks
+        Thread.sleep(sleepDelay);
+      } catch (InterruptedException exc) {
+      }
+      matchIfTasksAvailable();
+    }
+  }
+
+  protected void matchIfTasksAvailable() {
+    synchronized (this) {
+      if (!requests.isEmpty()) {
+        _requestMatcher.matchElevator(elevators, requests);
       }
     }
   }
 
   public synchronized void start() {
     elevators.stream().forEach(elevator -> _executor.submit(elevator));
-    _executor.submit(this);
+
+    if (false) {
+      // Submit the whole task
+      _scheduledExecutorService.submit(this);
+    } else {
+      // Or do something cooler and do a periodic task!
+      Runnable task = () -> matchIfTasksAvailable();
+      _scheduledExecutorService.scheduleAtFixedRate(task, 0, sleepDelay, TimeUnit.MILLISECONDS);
+    }
   }
 }
 
